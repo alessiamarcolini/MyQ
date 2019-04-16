@@ -26,6 +26,8 @@ Original filename
 ## Example
 Filename: `1_3_10175135_732364280137098_59386518_a.jpg`
 
-?: 
+1: neutral  
+
 1: female
+
 3: teenager
