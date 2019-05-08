@@ -13,7 +13,7 @@ genders = ["male", "female"]
 ages = ["baby", "child", "teen", "youth", "middle", "senior"]
 
 #load and compile model
-model = load_model('mobilenet20_20190507-175833.h5')
+model = load_model('mobilenet20_20190508-145757.h5')
 opt = tf.train.AdamOptimizer()
 model.compile(optimizer=opt, loss=['binary_crossentropy']*11, metrics=['accuracy'])
 model.predict(np.zeros((1,224,224,3))) #to initilize model
