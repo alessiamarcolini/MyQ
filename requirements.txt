@@ -12,7 +12,7 @@ entrypoints==0.3
 environment-kernels==1.1.1
 gast==0.2.2
 grpcio==1.16.1
-h5py==2.9.0
+h5py==2.8.0
 icc-rt==2019.0
 idna==2.8
 intel-openmp==2019.0
