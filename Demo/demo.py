@@ -13,28 +13,45 @@ genders = ["male", "female"]
 ages = ["baby", "child", "teen", "youth", "middle", "senior"]
 
 #load and compile model
-model = load_model('mobilenet20_20190508-145757.h5')
+model = load_model('../weights_h5/mobilenet_weighted_20190510-135116.h5')
 opt = tf.train.AdamOptimizer()
 model.compile(optimizer=opt, loss=['binary_crossentropy']*11, metrics=['accuracy'])
 model.predict(np.zeros((1,224,224,3))) #to initilize model
 
 #set to fullscren
 cv2.namedWindow("Demo", cv2.WND_PROP_FULLSCREEN)
-cv2.setWindowProperty("Demo",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
+#cv2.setWindowProperty("Demo",cv2.WND_PROP_FULLSCREEN,cv2.WINDOW_FULLSCREEN)
 
 #faceDetection for openCv
 cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
 #font for text over the image
 font = cv2.FONT_HERSHEY_SIMPLEX
 
-faceSquareSize = 150
+faceSquareSize = 300
 mirror = True #Mirror the video stream
 cam = cv2.VideoCapture(0) #Webcam "stream"
 counter = 0 #Fot prediction delay
 
 prevFacePrediction = []
+prevFacePrediction_sigmoid = []
 facePredictions = []
+facePredictions_color = []
 lock = threading.Lock() #Lock for multi-threaded access to global variables
+
+
+
+def getColor(value):
+    red = (0,0,255)
+    yellow = (0,255,255)
+    green = (0,255,0)
+    
+    if value < 0.40:
+        return red
+    elif value > 0.80:
+        return green
+    else:
+        return yellow
+    
 
 #Function for multi threaded prediction
 def analyzeFace(faces_rect, img, model, Session, Graph):
@@ -46,6 +63,7 @@ def analyzeFace(faces_rect, img, model, Session, Graph):
         position = (xS, yS)
         croppedImg = img[yS:yS+maxDim, xS:xS+maxDim] #Crop Face from image
         global facePredictions
+        global facePredictions_color
         x = image.img_to_array(croppedImg)
         x = np.expand_dims(x, axis=0)
         x = preprocess_input(x)
@@ -54,10 +72,16 @@ def analyzeFace(faces_rect, img, model, Session, Graph):
                 preds = model.predict(x)
 
         lock.acquire()
+        
+        
         emotion = np.argmax(preds[:3])
+        emotion_sigmoid = np.max(preds[:3])
         gender = np.argmax(preds[3:5])
+        gender_sigmoid = np.max(preds[3:5])
         age = np.argmax(preds[5:])
+        age_sigmoid = np.max(preds[5:])
         facePredictions.append([position, (emotion, gender, age)])
+        facePredictions_color.append([getColor(emotion_sigmoid), getColor(gender_sigmoid), getColor(age_sigmoid)])
         lock.release()
 
 
@@ -120,24 +144,37 @@ while True:
             yS = int((y + h/2) - maxDim/2)
 
             predictions = []
+            pred_color = []
             if len(facePredictions) >= faces:
                 predictions = facePredictions
+                pred_color = facePredictions_color
             else:
                 predictions = prevFacePrediction
+                pred_color = prevFacePrediction_sigmoid
 
             predictIndex = findClosestFace((xS, yS), predictions)
             if predictIndex != -1:
                 lock.acquire()
-                cv2.putText(img, "Emotion: " + emotions[predictions[predictIndex][1][0]],(xS,yS-60), font, 0.8,(0,0,255), 1, cv2.LINE_AA)
-                cv2.putText(img, "Gender: " + genders[predictions[predictIndex][1][1]],(xS,yS-35), font, 0.8,(0,0,255), 1, cv2.LINE_AA)
-                cv2.putText(img, "Age class: " + ages[predictions[predictIndex][1][2]],(xS,yS-10), font, 0.8,(0,0,255), 1, cv2.LINE_AA)
+
+                em = "Emotion: " + emotions[predictions[predictIndex][1][0]]
+                gen = "Gender: " + genders[predictions[predictIndex][1][1]]
+                age = "Age class: " + ages[predictions[predictIndex][1][2]]
+                #print("Emotion: " + emotions[predictions[predictIndex][1][0]] + " " + str(pred_color[predictIndex][0]))
+                cv2.putText(img, em, (xS,yS-60), font, 0.8, pred_color[predictIndex][0], thickness=2, lineType=cv2.LINE_AA)
+                
+                cv2.putText(img, gen, (xS,yS-35), font, 0.8, pred_color[predictIndex][1], thickness=2, lineType=cv2.LINE_AA)
+                
+                cv2.putText(img, age,(xS,yS-10), font, 0.8, pred_color[predictIndex][2], thickness=2, lineType=cv2.LINE_AA)
+                
                 lock.release()
         
         counter += 1
         if(counter >= 30):
             counter = 0
             prevFacePrediction = facePredictions
+            prevFacePrediction_sigmoid = facePredictions_color
             facePredictions = []
+            facePredictions_color = []
             analyze_thread = threading.Thread(target=analyzeFace, args=[faces_rect, img, model, K.get_session(), tf.get_default_graph()])
             analyze_thread.start() #Start the prediction thread
 
